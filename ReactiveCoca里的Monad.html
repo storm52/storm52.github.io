@@ -1,0 +1,73 @@
+<p>ReactiveCoca是Objc里的一套函数响应式编程框架。读它的源码，我们可以发现整体基类是一个RACStream的类.这个类在源码里注解道，这代表一个monad,许多流的操作建立这它的上面。
+<code></code>`
+/// This class represents a monad, upon which many stream-based operations can be built.</p>
+
+<p>@interface RACStream&lt;__covariant ValueType&gt; : NSObject</p>
+
+<p>/// Lifts <code>value</code> into the stream monad.
++ (__kindof RACStream&lt;ValueType&gt; *)return:(nullable ValueType)value;</p>
+
+<p>typedef RACStream * <em>Nullable (^RACStreamBindBlock)(ValueType </em>Nullable value, BOOL *stop);</p>
+
+<ul><li>(__kindof RACStream *)bind:(RACStreamBindBlock (^)(void))block;
+<code></code>`
+那么一个Monad意味着什么呢？回答这个问题之前，不如我们先看一个场景。</li></ul>
+
+<p>我们现在有一个函数，将字符串转化为数字，因为输入的字符串不是数字的话，不能转换成Int,所以这个函数返回的是一个Optional&lt;Int&gt;,函数签名我们用Swift来表示
+<code>
+func readInt(text:String)-&gt;Int?
+</code>
+接下来，我们还有一个函数接受学生id，查找学生信息,同理，返回的一个Optional&lt;Student&gt;
+<code>
+ func getById(id:Int)-&gt;Student?
+</code>
+现在有一个问题，我们只有一个学生ID的字符串，怎么获取的到Student呢？readInt返回的是一个Optional&lt;Int&gt;,但getById需要的是一个Int呀！要解决这个问题，正是我们今天说的Monad的要做的事情。</p>
+
+<p>如果把一般值类型的看做一个一般的世界，Optional的是一个高阶的世界，他们有一个对应的关系  Int与Optional&lt;Int&gt;类似。这种对应再比如，像电影头号玩家里讲述的VR世界，人、车、物，甚至光影色彩，在VR里都有他们的对应物。还有我们今天的主题ReactiveCoca,值也与RACStream的对应，它同样面对这样的问题，我有一个函数接受一般值的时候，但我们有的是一个产生该值的RACStream的时候，如何处理？建设这种对应的世界，完善这种对应的逻辑自洽，我们需要做到什么呢？</p>
+
+<ul><li>提升对应
+显然，我们首先需要一个函数 ，能把普通的值提升到高阶的世界。</li><li>函数合成
+我们按照上面的需求，再提一个需要的函数。一个能让你方便合成调用交叉世界的函数
+<code>
+func getById(id:Int)-&gt;Student?
+</code>
+变成这样的函数
+<code>
+func getById(id:Optional&lt;Int&gt;)-&gt;Student?
+</code>
+那我们上面的问题，不就解决了么。</li></ul>
+
+<h4>其实满足了上面这两个条件，我们就可以叫他是一个Monad了。</h4>
+
+<p>我们再看上面的RACStream是不是正是提供了这两个函数。</p>
+
+<p><code></code>`
+@interface RACStream&lt;__covariant ValueType&gt; : NSObject</p>
+
+<p>/// Lifts <code>value</code> into the stream monad.
++ (__kindof RACStream&lt;ValueType&gt; *)return:(nullable ValueType)value;</p>
+
+<p>typedef RACStream * <em>Nullable (^RACStreamBindBlock)(ValueType </em>Nullable value, BOOL *stop);</p>
+
+<ul><li>(__kindof RACStream *)bind:(RACStreamBindBlock (^)(void))block;
+<code></code>`</li><li>首先，可以很清楚的看到，return函数,提升值进入到流的世界。</li><li>然后，我们看到有一个函数bind。它的参数是一个block也就是一个函数，这个函数(RACStreamBindBlock)的入参是一个一般的值。看bind源码方式，可以看到，它是对其订阅，拿到RACStream对应的值然后调用了bindingBlock了。所以调用者是self,一个RACStream。
+<code>
+       [self subscribeNext:^(id x) {
+				// Manually check disposal to handle synchronous errors.
+				if (compoundDisposable.disposed) return;
+				BOOL stop = NO;
+				id signal = bindingBlock(x, &amp;stop);
+        }
+</code></li></ul>
+
+<h5>也就是说，bind让本来需要一个一般的值的入参函数做到了，可以接受一个RACStream。</h5>
+
+<p>也正是这两个函数，说RACStream是一个代表Monad的类。</p>
+
+<p>所以，如果我们要造一个我们自己的世界，怎么做呢。首先定义一个类型，然后实现你的return的函数，这个很简单也许类型包括一个值就可以了，返回对应的类型值。 然后就是要正确的实现一个bind了，那怎么检验一个bind是不是正确的呢，就看你的bind的应用是不是满足Monad的bind三条法则了。</p>
+
+<h4>总结</h4>
+
+<p>在ReactiveCoca里，我们写的各种异步调用，但是却可以统一的用各种操作符号链式方式，只关心数据流的处理就可以。我们需要做的只是提供要对数据进行处理的函数。这种便利的来由正是从Monad这里获得的了。</p>
+
+<h4>个人理解，局限多多，错误之处烦请指正</h4>
